@@ -5,6 +5,7 @@ import session from "express-session";
 import passport from "passport";
 import routes from "./routes/routes";
 import posts from "./routes/posts";
+import categories from "./routes/categories";
 
 dotenv.config();
 
@@ -50,5 +51,6 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use('/api', routes);
 app.use('/api/posts', posts);
+app.use('/api/categories', categories);
 
 export default app;

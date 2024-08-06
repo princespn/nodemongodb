@@ -4,10 +4,22 @@ import bcrypt from 'bcryptjs';
 import { User } from '../model/User';
 import { generateToken } from '../utils/jwtUtils';
 import { authenticateJWT } from '../middleware/authMiddleware';
+import multer from 'multer';
+
 
 const router = express.Router();
 
 
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, '../public/images/profile/');
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + '-' + file.originalname);
+  }
+});
+
+const upload = multer({ storage: storage });
 
 // Protected route example
 router.get('/protected', authenticateJWT, (req: Request, res: Response) => {
@@ -30,45 +42,50 @@ router.get('/getusers', authenticateJWT, async (req: Request, res: Response) => 
     }
 });
 
-router.post('/register', [
+router.post('/register', upload.single('profileImage'), [
     body('name').notEmpty().withMessage('Name field is required'),
     body('email').notEmpty().withMessage('Email field is required').isEmail().withMessage('Email not valid'),
     body('username').notEmpty().withMessage('Username field is required'),
     body('password').notEmpty().withMessage('Password field is required'),
     body('age').notEmpty().withMessage('Age field is required'),
     body('password2').custom((value, { req }) => {
-        if (value !== req.body.password) {
-            throw new Error('Passwords do not match');
-        }
-        return true;
+      if (value !== req.body.password) {
+        throw new Error('Passwords do not match');
+      }
+      return true;
     })
-], async (req: Request, res: Response) => {
+  ], async (req: Request, res: Response) => {
     const errors = validationResult(req);
     const { name, email, username, age, password } = req.body;
-
+  
     if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
+      return res.status(400).json({ errors: errors.array() });
     }
-
+  
     try {
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = new User({
-            name,
-            email,
-            username,
-            age,
-            password: hashedPassword
-        });
-
-        await newUser.save();
-
-        const token = generateToken(newUser._id.toString());
-        res.json({ token });
-
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const profileImage = req.file ? req.file.filename : 'default-profile.png';
+  
+      const newUser = new User({
+        name,
+        email,
+        username,
+        age,
+        password: hashedPassword,
+        profileImage
+      });
+  
+      await newUser.save();
+  
+      const token = generateToken(newUser._id.toString());
+      res.json({ token });
+  
     } catch (error) {
-        res.status(500).send('Server Error');
+      res.status(500).send('Server Error');
     }
-});
+  });
+  
+
 
 
 // src/routes/routes.ts

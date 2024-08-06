@@ -7,6 +7,7 @@ import { Post as PostModel, PostDocument } from '../model/Post';
 
 const router = express.Router();
 
+// Define Category schema and model
 const categorySchema = new mongoose.Schema({
   title: { type: String, required: true }
 });
@@ -16,7 +17,7 @@ const Category = mongoose.models.Category || mongoose.model('Category', category
 // Multer storage configuration
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, './public/images/uploads/');
+    cb(null, 'public/images/uploads/');
   },
   filename: function (req, file, cb) {
     cb(null, file.originalname);
@@ -24,6 +25,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
+// Fetch all posts
 router.get('/posts', authenticateJWT, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const posts = await PostModel.find({});
@@ -33,6 +35,7 @@ router.get('/posts', authenticateJWT, async (req: Request, res: Response, next: 
   }
 });
 
+// Fetch a specific post by ID
 router.get('/show/:id', authenticateJWT, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const post = await PostModel.findById(req.params.id);
@@ -43,6 +46,7 @@ router.get('/show/:id', authenticateJWT, async (req: Request, res: Response, nex
   }
 });
 
+// Add a comment to a post
 router.post('/addcomment', authenticateJWT, [
   body('title').notEmpty().withMessage('Title field is required'),
   body('name').notEmpty().withMessage('Name field is required'),
@@ -72,6 +76,7 @@ router.post('/addcomment', authenticateJWT, [
   }
 });
 
+// Add a new post
 router.post('/add', authenticateJWT, upload.single('thumbimage'), [
   body('title').notEmpty().withMessage('Title field is required'),
   body('body').notEmpty().withMessage('Body field is required')
@@ -98,6 +103,7 @@ router.post('/add', authenticateJWT, upload.single('thumbimage'), [
   }
 });
 
+// Edit an existing post
 router.put('/edit/:id', authenticateJWT, upload.single('thumbimage'), [
   body('title').notEmpty().withMessage('Title field is required'),
   body('body').notEmpty().withMessage('Body field is required')
@@ -124,11 +130,42 @@ router.put('/edit/:id', authenticateJWT, upload.single('thumbimage'), [
   }
 });
 
+// Delete a post
 router.delete('/delete/:id', authenticateJWT, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const deletedPost = await PostModel.findByIdAndDelete(req.params.id);
     if (!deletedPost) return res.status(404).send('Post not found');
     res.status(200).json({ message: 'Post deleted' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Fetch all categories
+router.get('/categories', authenticateJWT, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const categories = await Category.find({});
+    res.json({ categories });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Add a new category
+router.post('/categories/add', authenticateJWT, [
+  body('title').notEmpty().withMessage('Title field is required')
+], async (req: Request, res: Response, next: NextFunction) => {
+  const errors = validationResult(req);
+  const { title } = req.body;
+
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  try {
+    const newCategory = new Category({ title });
+    await newCategory.save();
+    res.status(201).json({ message: 'Category created', newCategory });
   } catch (err) {
     next(err);
   }
