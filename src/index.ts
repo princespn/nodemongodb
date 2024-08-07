@@ -6,6 +6,7 @@ import passport from "passport";
 import routes from "./routes/routes";
 import posts from "./routes/posts";
 import categories from "./routes/categories";
+import books from "./routes/books";
 
 dotenv.config();
 
@@ -51,6 +52,7 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use('/api', routes);
 app.use('/api/posts', posts);
+app.use('/api/books', books);
 app.use('/api/categories', categories);
 
 export default app;

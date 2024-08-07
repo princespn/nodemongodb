@@ -8,11 +8,13 @@ interface Comment {
   date: Date;
 }
 
+
+
 // Define an interface for the Post document
 interface PostDocument extends Document {
   title: string;
   body: string;
-  category: string;
+  categories: mongoose.Schema.Types.ObjectId;  // Changed to a single category
   date: Date;
   thumbimage: string;
   comments: Comment[];
@@ -22,7 +24,7 @@ interface PostDocument extends Document {
 const postSchema: Schema<PostDocument> = new Schema({
   title: { type: String, required: true },
   body: { type: String, required: true },
-  category: { type: String, required: true },
+  categories: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },  // Changed to a single category
   date: { type: Date, default: Date.now },
   thumbimage: { type: String, default: 'noimage.png' },
   comments: [{

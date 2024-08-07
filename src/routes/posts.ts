@@ -1,18 +1,11 @@
 import express, { Request, Response, NextFunction } from 'express';
 import { body, validationResult } from 'express-validator';
-import mongoose from 'mongoose';
 import multer from 'multer';
 import { authenticateJWT } from '../middleware/authMiddleware';
 import { Post as PostModel, PostDocument } from '../model/Post';
+import { Categories, CategoriesDocument } from '../model/Categories';
 
 const router = express.Router();
-
-// Define Category schema and model
-const categorySchema = new mongoose.Schema({
-  title: { type: String, required: true }
-});
-
-const Category = mongoose.models.Category || mongoose.model('Category', categorySchema);
 
 // Multer storage configuration
 const storage = multer.diskStorage({
@@ -28,7 +21,7 @@ const upload = multer({ storage: storage });
 // Fetch all posts
 router.get('/posts', authenticateJWT, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const posts = await PostModel.find({});
+    const posts = await PostModel.find({}).populate('category');
     res.json({ posts });
   } catch (err) {
     next(err);
@@ -38,7 +31,7 @@ router.get('/posts', authenticateJWT, async (req: Request, res: Response, next: 
 // Fetch a specific post by ID
 router.get('/show/:id', authenticateJWT, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const post = await PostModel.findById(req.params.id);
+    const post = await PostModel.findById(req.params.id).populate('category');
     if (!post) return res.status(404).send('Post not found');
     res.json({ post });
   } catch (err) {
@@ -56,13 +49,7 @@ router.post('/addcomment', authenticateJWT, [
   const { title, name, postId, body } = req.body;
 
   if (!errors.isEmpty()) {
-    try {
-      const post = await PostModel.findById(postId);
-      if (!post) return res.status(404).send('Post not found');
-      return res.status(400).json({ errors: errors.array() });
-    } catch (err) {
-      return next(err);
-    }
+    return res.status(400).json({ errors: errors.array() });
   }
 
   try {
@@ -79,23 +66,25 @@ router.post('/addcomment', authenticateJWT, [
 // Add a new post
 router.post('/add', authenticateJWT, upload.single('thumbimage'), [
   body('title').notEmpty().withMessage('Title field is required'),
-  body('body').notEmpty().withMessage('Body field is required')
+  body('body').notEmpty().withMessage('Body field is required'),
+  body('categories').notEmpty().withMessage('Category field is required')
 ], async (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
-  const { title, category, body } = req.body;
+  const { title, body, categories } = req.body;
   const thumbimage = req.file ? req.file.filename : 'noimage.png';
 
   if (!errors.isEmpty()) {
-    try {
-      const categories = await Category.find({});
-      return res.status(400).json({ errors: errors.array(), categories });
-    } catch (err) {
-      return next(err);
-    }
+    return res.status(400).json({ errors: errors.array() });
   }
 
   try {
-    const newPost = new PostModel({ title, body, category, date: new Date(), thumbimage });
+    // Validate that the category exists
+    const categoryExists = await Categories.findById(categories);
+    if (!categoryExists) {
+      return res.status(400).json({ message: `Category with id ${categories} not found` });
+    }
+
+    const newPost = new PostModel({ title, body, categories, date: new Date(), thumbimage });
     await newPost.save();
     res.status(201).json({ message: 'Post created', newPost });
   } catch (err) {
@@ -106,23 +95,29 @@ router.post('/add', authenticateJWT, upload.single('thumbimage'), [
 // Edit an existing post
 router.put('/edit/:id', authenticateJWT, upload.single('thumbimage'), [
   body('title').notEmpty().withMessage('Title field is required'),
-  body('body').notEmpty().withMessage('Body field is required')
+  body('body').notEmpty().withMessage('Body field is required'),
+  body('category').notEmpty().withMessage('Category field is required')
 ], async (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
-  const { title, category, body } = req.body;
+  const { title, body, category } = req.body;
   const thumbimage = req.file ? req.file.filename : req.body.prevImage;
 
   if (!errors.isEmpty()) {
-    try {
-      const categories = await Category.find({});
-      return res.status(400).json({ errors: errors.array(), categories });
-    } catch (err) {
-      return next(err);
-    }
+    return res.status(400).json({ errors: errors.array() });
   }
 
   try {
-    const updatedPost = await PostModel.findByIdAndUpdate(req.params.id, { title, body, category, date: new Date(), thumbimage }, { new: true });
+    // Validate that the category exists
+    const categoryExists = await Categories.findById(category);
+    if (!categoryExists) {
+      return res.status(400).json({ message: `Category with id ${category} not found` });
+    }
+
+    const updatedPost = await PostModel.findByIdAndUpdate(
+      req.params.id,
+      { title, body, category, date: new Date(), thumbimage },
+      { new: true }
+    );
     if (!updatedPost) return res.status(404).send('Post not found');
     res.status(200).json({ message: 'Post updated', updatedPost });
   } catch (err) {
@@ -136,36 +131,6 @@ router.delete('/delete/:id', authenticateJWT, async (req: Request, res: Response
     const deletedPost = await PostModel.findByIdAndDelete(req.params.id);
     if (!deletedPost) return res.status(404).send('Post not found');
     res.status(200).json({ message: 'Post deleted' });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// Fetch all categories
-router.get('/categories', authenticateJWT, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const categories = await Category.find({});
-    res.json({ categories });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// Add a new category
-router.post('/categories/add', authenticateJWT, [
-  body('title').notEmpty().withMessage('Title field is required')
-], async (req: Request, res: Response, next: NextFunction) => {
-  const errors = validationResult(req);
-  const { title } = req.body;
-
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  try {
-    const newCategory = new Category({ title });
-    await newCategory.save();
-    res.status(201).json({ message: 'Category created', newCategory });
   } catch (err) {
     next(err);
   }
